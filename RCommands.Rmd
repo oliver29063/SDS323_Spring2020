@@ -1,0 +1,42 @@
+---
+title: "R Commands"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Chapter 2: Introduction to R
+
+To create a vector of numbers, we use the function `c()`. We can save things with either `<-`. In addition, we use `[]` as index brackets, which start at `1`, not `0`. The function `length()` shows us the size of a 1D vector. Meanwhile, the `ls()` function allows us to see all objects. `rm()` deletes unnecessary objects. Examine the example code and its outputs below.
+```{r}
+x1 <- c(1,3,2,5)
+c(2,4,6,2) -> x2
+y <- c(2,7,4,1)
+cat(' The value of x1 is:',x1,'\n','The value of x2 is:',x2,'\n','The value of y is:',y)
+x1[2]
+```
+
+
+
+The `matrix()` function creates a matrix of numbers.
+
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
