@@ -22,6 +22,7 @@ library(broom)
 library(scales)
 library(grid)
 library(gridExtra)
+library(dplyr)
 
 # Import datasets
 ABIA = read.csv("~/Github/SDS323_Spring2020/ABIA.csv")
@@ -140,9 +141,9 @@ grid.arrange(AvgWeek, MedWeek, ncol = 2)
 
 We can very clearly see that with the exception of flights scheduled for departure from 04:00-05:00, the average arrival delay increases as we progress later into the day. Although perhaps it makes more sense to look at the median arrival delay instead, so that the occasional serious delay does not skew our results. We can see that the trend for median delayed arrival is similar to the trend for average delayed arrival. 
 
-We also see that if Saturday provides you the best odds of arriving early, while Friday provides you the worst odds of arriving early. In addition, we see that the Autumn months of September, October, and November, provides you the best odds of arriving early, compared to other months. In you are more likely to be late than not late in the months of March and June, although the median delayed arrival is just a mere minute. 
+We also see that Saturday provides you the best odds of arriving early, while Friday provides you the worst odds of arriving early. In addition, we see that the Autumn months of September, October, and November, provides you the best odds of arriving early, compared to other months. Although you are more likely to be late than not late in the months of March and June, the median delayed arrival is just a mere minute. 
 
-When examining both the average and median arrival delay across daily time, week day, and month, we can deduct that early arrivals occur more frequently than late arrivals, but the margin of tardiness in late arrivals tend to be more drastic than the margin of earliness in early arrivals.
+When examining both the average and median arrival delay across time of day, day of week, and month, we can deduct that early arrivals occur more frequently than late arrivals, but the margin of tardiness in late arrivals tend to be more drastic than the margin of earliness in early arrivals. This causes the median arrival times to be usually early, while the mean arrival times are usually late.
 
 
 # Regression Practice with Creatinine Clearance
@@ -187,7 +188,7 @@ In the context of widely accepted medical knowledge however, a normal creatinine
 # Green Building Problem
 
 ## Fact-Checking the Developer Staff's Initial Claims
-Let us quickly fact check the first claim made by the developer's staff. The staff claims that "the median market rent in the non-green buildings was \$25.00 per square foot per year, while the median market rent in the green buildings was \$27.60 per square foot per year: about \$2.60 more per square foot". Upon simple analysis of our own data, we see that this is indeed the case
+Let us quickly fact-check the first claim made by the developer's staff. The staff claims that "the median market rent in the non-green buildings was \$25.00 per square foot per year, while the median market rent in the green buildings was \$27.60 per square foot per year: about \$2.60 more per square foot" for buildings with at least 10\% occupancy. Upon simple analysis of our own data, we see that this is indeed the case
 
 ```{r}
 # Fact check claim that median green rent is $27.60 and median non-green rent is $25.00
@@ -198,7 +199,7 @@ sprintf("The median rent for non-green buildings, excluding buildings with less 
 ```
 
 ## Examining Rental Price per Sq. Ft. as a Function of Building Size
-This analysis however, does not take into account of the square footage of the buildings. Below, we implement Loess regression just to visually examine whether building size measured in square footage affects the rental price per square foot. We see that indeed, at the extremes of the range from 0 to 500,000 square feet, the rental price seems to noticeably change.
+This analysis however, does not take into account of the square footage of the buildings. Below, we implement Loess regression to visually examine whether building size measured in square footage affects the rental price per square foot. We see that indeed, at the extremes of the range from 0 to 500,000 square feet, the rental price seems to noticeably change.
 
 ```{r}
 # Compare median rent price with building size
@@ -247,44 +248,44 @@ ggplot(SizeSubset, aes(x=factor(green_rating), y=Rent)) +
   labs(caption = "For buildings with 150,000-350,000 sq. ft. with at least 10% occupancy. Outliers have been removed.")
 ```
 
-We see that the median rent of a green building that is 150,000-350,000 square feet is \$29.00 per square foot, while the median rent of a non-green building that is 150,000-350,000 is \$27.60 per square foot. Consequently, a better estimate of the difference in the median market rent between green and non-green buildings, for our building size of 250,000 square feet, is closer to about \$1.40 more per square foot in green buildings. This is a significantly smaller margin than the estimate given by the staff, which warrants serious consideration. 
+We see that the median rent of a green building that is 150,000-350,000 square feet is \$29.00 per square foot, while the median rent of a non-green building that is 150,000-350,000 is \$27.60 per square foot. Consequently, a better estimate of the difference in the median market rent between green and non-green buildings, for our building size of 250,000 square feet, is closer to about \$1.40 more per square foot in green buildings. This is a significantly smaller margin than the estimate given by the staff, which warrants serious reconsideration of whether or not to build a green building. 
 
 ## Examining How Building Class (Quality) Affects Rental Price Estimates
-Luckily, our dataset also describes the "quality" of the buildings, which can provide us some deeper insights on the rental price differences across different levels of quality in green and non-green buildings. If we calculate the median prices by the building quality, we gain some interesting conclusions.
+Luckily, our dataset also describes the "quality" of the buildings, which can provide us some deeper insights on the rental price differences across different levels of quality in green and non-green buildings. If we calculate the median prices by the building quality and green-certification status, we gain some interesting additional insights.
 
 ```{r}
-# Calculate median rent by building class subsets
-ClassAGreenRent <- median(subset(GreenSizeSubset, class_b == 1 & Energystar == 1)[,"Rent"], na.rm = TRUE)
-ClassBGreenRent <- median(subset(GreenSizeSubset, class_a == 1 & Energystar == 1)[,"Rent"], na.rm = TRUE)
-ClassCGreenRent <- median(subset(GreenSizeSubset, class_a == 0 & class_b == 0 & Energystar == 1)[,"Rent"], na.rm = TRUE)
-ClassALEADRent <- median(subset(GreenSizeSubset, class_b == 1 & LEED == 1)[,"Rent"], na.rm = TRUE)
-ClassBLEADRent <- median(subset(GreenSizeSubset, class_a == 1 & LEED == 1)[,"Rent"], na.rm = TRUE)
-ClassCLEADRent <- median(subset(GreenSizeSubset, class_a == 0 & class_b == 0 & LEED == 1)[,"Rent"], na.rm = TRUE)
-ClassANormRent <- median(subset(NormSizeSubset, class_b == 1)[,"Rent"], na.rm = TRUE)
-ClassBNormRent <- median(subset(NormSizeSubset, class_a == 1)[,"Rent"], na.rm = TRUE)
-ClassCNormRent <- median(subset(NormSizeSubset, class_a == 0 & class_b == 0)[,"Rent"], na.rm = TRUE)
+# Add single attribute for building classes A, B, and C
+SizeSubset <- SizeSubset %>% mutate(
+     Class = case_when(
+         class_a==1 ~ "A",
+         class_b==1 ~ "B",
+         TRUE ~ "C"
+     )
+)
 
-ClassMed = data.frame("Class" = c("A","B","C","A","B","C","A","B","C"), 
-                      "Green" = c('Energystar-Green','Energystar-Green','Energystar-Green',
-                                  'LEAD-Green','LEAD-Green','LEAD-Green','Non-Green','Non-Green','Non-Green'), 
-                      "MedRent" = c(ClassAGreenRent,ClassBGreenRent,ClassCGreenRent,ClassALEADRent,ClassBLEADRent,
-                                    ClassCLEADRent,ClassANormRent,ClassBNormRent,ClassCNormRent))
+# Add single attribute for building green certification status
+SizeSubset <- SizeSubset %>% mutate(
+     Green = case_when(
+         LEED==1 ~ "LEED",
+         Energystar==1 ~ "Energystar",
+         TRUE ~ "Non-Green"
+     )
+)
 
-ggplot(ClassMed, aes(x=Class, y=MedRent, fill = Green)) + 
-  geom_bar(position = "dodge", stat = "identity") +
-  labs(title = "Median Rental Price for Different Building Classes and Green Status") +
-  labs(y = "Median Rental Price ($ / Sq Ft)", x = "Building Class") +
+ggplot(SizeSubset, aes(x=factor(Class), y=Rent, fill = Green)) + 
+  geom_boxplot(outlier.shape=NA) +
+  coord_cartesian(ylim = c(0,75)) +
+  labs(title = "Median Rent of Different Building Classes by Green Status")+
   theme(plot.title = element_text(hjust = 0.5)) +
-  labs(caption = "For buildings with 150,000-350,000 sq. ft. with at least 10% occupancy.")
+  labs(y= "Rental Price ($/ Sq. Ft)", x = "Green-Certification Status") +
+  scale_x_discrete(labels=c("Class A","Class B","Class C")) +
+  labs(caption = "For buildings with 150,000-350,000 sq. ft. with at least 10% occupancy. Outliers have been removed.")
 ```
 
-Here we see that the difference in rental price varies depending on the quality of the building. These results suggest that having a Energystar-rated green, class C building allows us to charge significantly more on rent, by about \$6.40. In contrast, green, Class A buildings actually have a median rent that is lower than that of non-green, Class A buildings. Lastly, the median rental prices are about the asme between green and non-green buildings for class B buildings. Although we have not yet determined the quality of our to-be-built building, the results suggest that this decision would heavily influence whether or not to build a green building. 
+Here we see that the difference in rental price by green-cretification status varies depending on the quality of the building. These results suggest that having a Energystar-rated green, class C building allows us to charge significantly more on rent, by about \$6.40. In contrast, Energystar-Green, Class A buildings actually have a median rent that is lower than that of non-green, Class A buildings. Lastly, the median rental prices are almost the same between green and non-green buildings for class B buildings. Although we have not yet determined the quality of our to-be-built building, the results suggest that this decision would heavily influence whether or not to build a green building. 
 
 ## Qualitatively Examining How Building Age Affects Rental Prices
-If we really wanted to dig deeper, we should also observe that rental prices may possible change across different building ages. Consequently, let us examine this. Note to self, we still need to find linear equation, find out how to display it on plot, and analyze the difference in the linear equations for rental price margins. 
-
-
-Perhaps the last factor we should take into consideration is the age of buildings, and how it affects the rental prices. First however, let us examine the age distribution of the green and non-green buildings, as shown below. The density map cloearly shows that the green buildings are generally newer than the non-green buildings. This will be important to note in the next figure.
+Perhaps the last factor we should take into consideration is the age of buildings, and how it affects the rental prices. First however, let us examine the age distribution of the green and non-green buildings, as shown below. The density map clearly shows that the green buildings are generally newer than the non-green buildings. This will be important to note in the next figure.
 
 ```{r}
 ggplot(SizeSubset, aes(x=age)) +
@@ -310,12 +311,12 @@ ggplot(data = subset(SizeSubset, age <= 30), aes(x=age, y=Rent)) +
   labs(caption ="Simple linear regression with the shaded region marking the 95% confidence interval.") 
 ```
 
-When these two pieces of information are taken into consideration together, it is worth noting that the difference between rental prices in green and non-green buildings may be partially due to the fact that green buildings tend to be newer than non-green buildings, resulting in a boost in the median rental price of green buildings since newer buildings tend to have higher rental values. 
+When these two pieces of information are taken into consideration together, it is worth noting that the difference between rental prices in green and non-green buildings may be partially due to the fact that green buildings tend to be newer than non-green buildings, resulting in a boost in the median rental price of green buildings, since newer buildings tend to have higher rental values. 
 
-The reason why we do not try to explicitly quantify how much additional profit this age factor generates, is because linear regression predicts an average rental price based on age, rather than a median rental price. Since the median rental price is what we have been working with - due to its robustness against outliers - it would be difficult to gauge the value in predicting average rental price based on age. However, it is important to note this possible underlying trend.
+The reason why we do not try to explicitly quantify how much additional profit this age factor generates, is because linear regression predicts an average rental price based on age, rather than a median rental price. Since the median rental price is what we have been working with - due to its robustness against outliers - it would be difficult to gauge the value in predicting average rental price based on age. However, it is still important to at least acknowledge this possible underlying trend.
 
 ## Reevalutating Developer Staff's Claims on Opportunity-Cost of Building a Green Building
-Now let us evaluate the benefits of building a green building instead of a non-green building, on the premise that it will be 250,000 square feet, Energystar-certified rather than LEED-certified, and belonging to Class C in terms of building quality. We see that the difference in the median rental price gives us an additional \$6.40 per square footage in the green building. Given that the median occupancy of a Energystar-certified, Class C, 150,000-350,000 square foot building is 90.67%, we expect to rent out about 226,675 square feet of the building. This gives us a net profit of \$ 1,450,720 a year. In addition, it is worth noting that the median occupancy of a non-green, Class C, 150,000-350,000 square foot building is 84.33%, significantly lower than that of its Energystar-certified equivalent. Both these differences in median rental price per square foot and the leasing occupancy rates, should be taken into consideration when calculating the cost-benefit ratio of a Energystar-certified vs non-green building. 
+Now let us evaluate the benefits of building a green building instead of a non-green building, on the premise that it will be 250,000 square feet, Energystar-certified rather than LEED-certified, and belonging to Class C in terms of building quality. We see that the difference in the median rental price gives us an additional \$6.40 per square footage in the green building. Given that the median occupancy of a Energystar-certified, Class C, 150,000-350,000 square foot building is 90.67%, we expect to rent out about 226,675 square feet of the building. In addition, it is worth noting that the median occupancy of a non-green, Class C, 150,000-350,000 square foot building is 84.33%, significantly lower than that of its Energystar-certified equivalent. Both these differences in median rental price per square foot and the leasing occupancy rates, should be taken into consideration when calculating the cost-benefit ratio of a Energystar-certified vs non-green building. 
 
 Consequently, a Energystar-certified building would acquire about \$6,550,908 in annual revenue and a non-green builidng would net about \$4,743,563 in annual revenue, with a net difference of \$1,807,345. Given that the additional cost of making a building Energystar-certified is \$5,000,000, it would take just 2.77 years. In general, the total cost of the entire building will be recuperated in 16.03 years, in contrast to a non-green building that would take 21.08 years to recuperate entire building costs.
 
@@ -323,7 +324,7 @@ Consequently, a Energystar-certified building would acquire about \$6,550,908 in
 median(subset(SizeSubset, Energystar == 1 & size >=150000 & size <= 350000 & class_a == 0 & class_b == 0)[,"leasing_rate"], na.rm = TRUE)
 median(subset(SizeSubset, green_rating == 0 & size >=150000 & size <= 350000 & class_a == 0 & class_b == 0)[,"leasing_rate"], na.rm = TRUE)
 250000*0.9067 # how much square feet will be rented out
-226675*6.40 # total revenue in rented out space
+#226675*6.40 # total revenue in rented out space
 5000000/1807345 # how long to recuperate additional costs for green-certification
 28.9*226675 # annual revenue for green
 22.5*210825 # annual revenue for non-green
