@@ -7,21 +7,11 @@ First we load the relevant libraries and datasets for this assignment:
     library(corrplot)
     library(NbClust)
     library(Rtsne)
-
     library(ggplot2)
     library(dplyr)
-    #library(class)
-    #library(gridExtra)
-    #library(gmodels)
-    #library(caret)
     library(corrplot)
-    #library(clusterGeneration)
-    #library(mnormt)
     library(mosaic)
     library(tidyverse)
-    #library(FNN)
-    #library(broom)
-    #library(glmnet)
     library(knitr)
 
     # Import datasets
