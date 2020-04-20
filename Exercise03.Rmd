@@ -1,0 +1,407 @@
+---
+title: "Exercise 03 - Oliver Zhao - soz63"
+#output: html_document
+output: md_document
+fig_width: 10
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(comment = NA)
+knitr::opts_chunk$set(collapse = TRUE)
+knitr::opts_chunk$set(message = TRUE)
+knitr::opts_chunk$set(warning = FALSE)
+# Set output to "md_document" or "html_document"
+```
+
+First we load the relevant libraries and datasets for this assignment:
+```{r, message=F, warning=F}
+# Import libraries
+library(randomForest)
+library(caTools)
+library(factoextra)
+library(corrplot)
+library(NbClust)
+library(Rtsne)
+
+library(ggplot2)
+library(dplyr)
+#library(class)
+#library(gridExtra)
+#library(gmodels)
+#library(caret)
+library(corrplot)
+#library(clusterGeneration)
+#library(mnormt)
+library(mosaic)
+library(tidyverse)
+#library(FNN)
+#library(broom)
+#library(glmnet)
+library(knitr)
+
+# Import datasets
+Build <- read.csv("~/Github/SDS323_Spring2020/greenbuildings.csv")
+Wine <- read.csv("~/Github/SDS323_Spring2020/wine.csv")
+Market <- read.csv("~/Github/SDS323_Spring2020/social_marketing.csv")
+
+# Set random seed for entire markdown document
+set.seed(123)
+
+# Define function for calculating root mean squared error (RMSE)
+rmse = function(y, yhat) {
+  sqrt( mean( (y - yhat)^2 ) )
+}
+```
+
+# Problem 1: Predictive Model Building
+
+## Overview of Problem Statement
+The greenbuildings.csv dataset contains a series of many features that describe each building, such as the square footage, how old the building is, and most importantly, the rental price per square foot and the green certification-status. Here we wish to build a predictive model for price, with a secondary goal of quantifying how the average change in rental income per square foot changes with green certification. 
+
+## Data and Model
+### Removing Irrelevant Features
+We denote the dataframe loaded from ```greenbuildings.csv``` as ```Build```. In all analyses, the following features are removed due to either irrelevance or suspected irrelevance: ```CS_PropertyID```, ```cluster```, ```empl.gr```, and ```cluster_rent```. In addition, we do not distinguish the difference between LEED and Energystar certification, so we remove the features ```LEED``` and ```Energystar```, while keeping the feature ```green.rating```. This leaves us with 17 of the original 23 features, including the target feature ```Rent```. 
+
+### Dimension Reduction with Principal Component Analysis
+Excluding the ```Rent``` target feature, principal component analysis (PCA) was run on the remaining 16 features for dimension reduction. Prior to using PCA, all features excluding the target feature ```Rent``` were scaled such that the mean is zero and the standard deviation is one.
+
+### Generating Linear Regression Models as Baseline
+To act as baseline comparison models, we run several variants of a linear regression model on the PCA-transformed dataset. We run the linear regression model with: (1) 5 principal components, (2) 10 principal components, and (3) 15 principal components. In each model variant, we use a random train/test split with a 80/20 ratio, for 50 repetitions.
+
+### Generating Random Forest Models 
+It is doubtful that the rental prince per square footage in the dataset can be accurately predicted through linear regression, as this model assumes that there exist only linear relationships between the features in the dataset. To address this flawed assumption, we implement a random forest model with 500 trees with three tested variables at each node (```mtry = 3```). Because random forest models can handle a high number of unscaled features, we do not run the model on the PCA transformed dataset. Instead, we run it on the non-PCA-transformed and unscaled dataset of 17 features. We use a random train/test split with a 80/20 ratio, for 20 repetitions.
+
+### Predicting the Impact of Green Certification on Rent Price
+Predicting the impact of the green certification on rental price is simple. We just observe the model output of two identical data entries, with the exception that one data entry is green certified and the other data entry is not. Ideally, to maximize the accuracy of the differences, the model user should already know what the desired building features are, such as square footage, the number of floors, and other features. But for illustration purposes, we will use a sample building entry in which all features are the median of the dataset for numerical features and the mode of the dataset for categorical features. 
+
+## Results: Developing a Predictive Model for Rent
+
+### Captured Variance in Principal Component Analysis
+We easily see that the first 3 principal components capture 50.9% of the dataset variance, the first 9 principal components capture 89.1% of the dataset variances, and the first 11 principal components capture 95.4% of the dataset variance.
+```{r}
+# Remove irrelevant features and scale remaining features
+Build.Scaled <- na.omit(Build)
+Build.Scaled <- scale(Build[, -c(1,2,4,5,12,13,23)])
+Build.Scaled <- as.data.frame(Build.Scaled)
+Build.Scaled$Rent <- Build$Rent
+
+# Perform principal component analysis and isolate the principal components
+Build.pca <- prcomp(Build.Scaled[,c(-17)], center = TRUE, scale. = TRUE)
+Build.PCA <- Build.pca$x[,1:15]
+Build.PCA <- as.data.frame(Build.PCA)
+Build.PCA$Rent <- Build$Rent
+Build.PCA$green_rating <- factor(Build$green_rating)
+
+# Calculate variance of each principal component
+Build.var <- (Build.pca$sdev)^2
+Build.pvar <- Build.var/sum(Build.var)
+
+# Plot variance explained
+plot(Build.pvar, xlab = "Principal Component",
+             ylab = "Proportion of Variance Explained",
+             type = "b",
+             main = "Variance of Each Principal Component")
+plot(cumsum(Build.pvar), xlab = "Principal Component",
+              ylab = "Cumulative Proportion of Variance Explained",
+              type = "b",
+              main = "Cumulative Variance of Principal Components")
+```
+
+### Linear Regression Models
+Unsurprisingly, the linear regression model with the most principal components - 15 principal components - performs the best with a RMSE of 12.46. This can serve as our baseline model, as we know that the linearity of this model is unlikely to capture the complex relationships necessary to predict our target feature ```Rent```.
+
+```{r}
+# Find size of train and test sets for a 80/20 split
+n = nrow(Build.PCA)
+n_train = round(0.8*n)  
+n_test = n - n_train
+
+# Examine linear regression performance on two datasets
+M <- 3 # number of models
+rmse_vals <- matrix(0, nrow = 100, ncol = M)
+
+for(i in 1:100){
+  
+  # Re-split into train and test sets
+  train_cases = sample.int(n, n_train, replace=FALSE)
+  test_cases = setdiff(1:n, train_cases)
+  Build_train = Build.PCA[train_cases,]
+  Build_test = Build.PCA[test_cases,]
+  
+  # LR model variants
+  lm1 = lm(Rent ~ green_rating + PC1 + PC2 + PC3 + PC4 + PC5, data=Build_train)
+  lm2 = lm(Rent ~ green_rating+ PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10, data=Build_train)
+  lm3 = lm(Rent ~ ., data=Build_train)
+  
+  # Predictions out of sample
+  yhat_test1 = predict(lm1, Build_test)
+  yhat_test2 = predict(lm2, Build_test)
+  yhat_test3 = predict(lm3, Build_test)
+
+  # Store RMSE values
+  rmse_vals[i,1:M] <- c(rmse(Build_test$Rent,  yhat_test1),
+                        rmse(Build_test$Rent,  yhat_test2),
+                        rmse(Build_test$Rent,  yhat_test3))
+}
+colMeans(rmse_vals)
+boxplot(rmse_vals, xlab = "Model Variant", ylab = "RMSE", main = "Linear Regression Models", names = c("5 PCs", "10 PCs", "15 PCs"))
+```
+
+### Random Forest Models
+The random forest model has a mean RMSE of 8.75, which is significantly lower than the linear regression model with 15 principal components and a mean RMSE of 12.46. 
+```{r}
+rmse_vals <- matrix(0, nrow = 20, ncol = 1)
+
+Build.Unscaled <- Build[, -c(1,2,4,12,13,23)]
+
+for(i in 1:20){
+  
+  splitPercent <- 0.2
+  sample <- sample.split(Build.Unscaled$Rent, SplitRatio = splitPercent*nrow(Build.Unscaled))
+  train <- subset(Build.Unscaled, sample == TRUE)
+  test  <- subset(Build.Unscaled, sample == FALSE)
+  dim(train)
+  dim(test)
+  
+  rf <- randomForest(
+    Rent ~ .,
+    data=train
+  )
+  
+  pred = predict(rf, newdata=test)
+  
+  rmse_vals[i,1] <- rmse(test$Rent,pred)
+
+}
+colMeans(rmse_vals)
+boxplot(rmse_vals, xlab = "Model Variant", ylab = "RMSE", main = "Random Forest Model", names = c("RF Model"))
+```
+
+## Results: Predicting The Effects of Green Certification on Rent Prices
+For the most "typical" building, in which all of its features are the median for numeric features and mode for features, the building has the features listed below. Note that one exception is the two features ```class_a``` and ```class_b```, since they are one-hot encoded features. For this example, the building has the values ```class_a = 0``` and ```class_b = 1```, since the dataset has 3157 Class A buildings, 3627 Class B buildings, and 1110 Class C buildings. 
+
+- ```size``` = 128838
+- ```leasing_rate``` = 89.53
+- ```stories``` = 10
+- ```age``` = 34
+- ```renovated``` = 0
+- ```class_a``` = 0
+- ```class_b``` = 1
+- ```net``` = 0
+- ```amenities``` = 1
+- ```cd_total_07``` = 966
+- ```hd_total07``` = 58
+- ```total_dd_07``` = 4979
+- ```Precipitation``` = 23.16
+- ```Gas_Costs``` = 0.01029615
+- ```Electricity_Costs``` = 0.0327374
+
+We see that the green certification status boosts the rental price from \$28.96 to \$29.30 per square foot per month, or a net difference of \$0.36 per square foot per month. 
+
+```{r}
+# Create function for finding mode 
+mode <- function(v) {
+   uniqv <- unique(v)
+   uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+# Create dataframe with fake buildings
+testBuild <- Build[1, -c(1,2,4,12,13,23)]
+testBuild$size <- median(Build$size)
+testBuild$leasing_rate <- median(Build$leasing_rate)
+testBuild$stories <- median(Build$stories)
+testBuild$age <- median(Build$age)
+testBuild$renovated <- mode(Build$renovated)
+testBuild$class_a <- mode(Build$class_a)
+testBuild$class_b <- 1
+testBuild$net <- mode(Build$net)
+testBuild$amenities <- mode(Build$amenities)
+testBuild$cd_total_07 <- median(Build$cd_total_07)
+testBuild$hd_total_07 <- median(Build$hd_total_07)
+testBuild$total_dd_07 <- median(Build$total_dd_07)
+testBuild$Precipitation <- median(Build$Precipitation)
+testBuild$Gas_Costs <- median(Build$Gas_Costs)
+testBuild$Electricity_Costs <- median(Build$Electricity_Costs)
+testBuild[2,] <- testBuild[1,]
+testBuild[2,9] <- 0
+
+# Run fake buildings through random forest model
+pred <- predict(rf, newdata=testBuild)
+pred
+```
+
+## Conclusion
+Unsurprisingly, the random forest model performed significantly better than the linear regression model. Random forests in general perform well with tabular data due to its ability to reduce variance through its ensemble of decision trees, which also allows for accurate approximations of nonlinear relationships. 
+
+In the results section, we demonstrate how to use the random forest model to examine how green certification changes the rental income per square foot. In practice however, perhaps the most useful way to utilize the random forest model is to determine what type of building is desired first, before determining whether or not green certification will provide a net benefit with respect to the higher initial cost required for such a certification.
+
+# Problem 2
+
+## Part A
+We cannot just run regression on "Crime" and "Police" to understand how cops in the streets affect crime. As banal as it sounds, "correlation does not mean causation". In short, a regression model only allows us to see how the two variables have been related to each other in time, but that does implicit the direction of casuality, if any casuality even exists. 
+
+## Part B
+Researchers from UPenn were able to isolate the effect by looking at terror threat levels, as different levels federally mandate that there is an increased police presence. Theoretically, the terror threat level has no impact on daily domestic crime. Consequently, this way they can see whether increased police presence causes a change in crime. In the results, we see that indeed crime has a statistically significant decline on high-alert days, whether or not controlling for metro ridership.
+
+## Part C
+The researchers controlled for metro ridership to address a possible underlying causation of high terror threat levels causing less tourism. With less tourism, there will also be less victims (to put it crudely), which could also result in a reduction in crime. Consequently, it is possible that in some instances of heavy police presence, the reduction in crime is not due to the police presence itself, but rather than high terror threat levels that cause a reduction in tourists. Controlling for metro ridership can help mitigate this possible confounding connection, allowing us to focus better on how police presence alone affects crime rate.
+
+## Part D
+In Table 4, they examine whether the effect of high terror threat days on crime is consistent across different districts. By incorporating the additional feature of distriction, they find that only district 1 had a statistically significant decline in crime on high alert days. This can suggest two non-exhaustive conclusions: (1) increasing police presence only reduces crime in district 1 or (2) most police on high terror days are deployed to district 1 (where most of the federal government is), which is why that area sees the most reduction in crime.
+
+# Problem 3
+
+## Problem Statement
+We have a dataset from ```wine.csv```, which is loaded into a dataframe called ```Wine```. The dataset contains 11 features that describe chemical properties of 6500 different wine bottles from northern Portugal, as well as two additional features that describe whether the wine is white or red and what the quality of the wine is. Our goal here is to run a PCA and K-means clustering algorithm to see which technique is better at distinguishing between two sets of classes: (1) whether the wine is red or white and (2) the quality of the wine on a scale from 1 to 10. 
+
+## Methods
+For the PCA method, we simply just plot the first two principal components on a simple XY plot. Usually, determining the optimal number of clusters is found through a variety of methods, such as the Elbow method, Silhouette method, and Gap Statistic method. In our case however, we know how many "classes" there are. Namely, there are two classes for wine type and seven classes for wine quality, as there appears to be no items with a wine quality of 1, 2, or 10. 
+
+## Results: Principal Component Analysis
+We see that the PCA method appears to be quite effective at seperating the red and white wine, despite the first two principal components only capturing roughly half of the dataset variance. However, we see that PCA is not effective are separating the wine quality classes, with significant overlap occuring. 
+
+```{r}
+# Scale dataset
+Wine.Scaled <- na.omit(Wine)
+Wine.Scaled <- scale(Wine[, c(1:11)])
+Wine.Scaled <- as.data.frame(Wine.Scaled)
+Wine.Scaled$quality <- Wine$quality
+Wine.Scaled$color <- Wine$color
+
+
+# Transform data with PCA
+Wine$quality <- factor(Wine.Scaled$quality)
+wine.pr <- prcomp(Wine.Scaled[c(1:11)], center = TRUE, scale = TRUE)
+
+# PCA for wine type
+fviz_pca_ind(wine.pr, geom.ind = "point", pointshape = 21, 
+             pointsize = 1, 
+             fill.ind = Wine$color, 
+             col.ind = "black", 
+             palette = "jco", 
+             addEllipses = TRUE,
+             label = "var",
+             col.var = "black",
+             repel = TRUE,
+             legend.title = "Wine Type") +
+  ggtitle("2D PCA-Plot of Red and White Wine") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# PCA for wine quality
+fviz_pca_ind(wine.pr, geom.ind = "point", pointshape = 21, 
+             pointsize = 1, 
+             fill.ind = Wine$quality, 
+             col.ind = "black", 
+             palette = "jco", 
+             addEllipses = TRUE,
+             label = "var",
+             col.var = "black",
+             repel = TRUE,
+             legend.title = "Wine Quality") +
+  ggtitle("2D PCA-Plot of Wine Quality") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Meanwhile, the K-means clustering method also appears to be able to separate the red and white wine classes, and similarly fails to separate the different wine quality levels. 
+
+```{r}
+# K-Means clustering for white and red wine (k=2)
+final <- kmeans(Wine.Scaled[,c(1:11)], 2, nstart = 25)
+fviz_cluster(final, data = Wine.Scaled[,c(1:11)], geom = "point", main = "k=2 (Wine Type)")
+
+# K-Means clustering for wine qualities (k=7)
+final <- kmeans(Wine.Scaled[,c(1:11)], 7, nstart = 25)
+fviz_cluster(final, data = Wine.Scaled[,c(1:11)], geom = "point", main = "k=7 (Wine Quality)")
+```
+
+## Results
+We see that both the PCA and K-means clustering methods are good at separating between red wine and white wine. However, K-means clustering is a more reasonable method because it already uses PCA prior to clustering, and generates discrete clusters on its own. On the PCA plot of red and white wine, we can easily visualize the clusters for red wine and white wine, but it would be arbitrary to try to draw the boundaries for the two clusters by hand. K-means clustering, while not perfect, addresses this ambiguity issue.
+
+In the PCA plot, we see the regions of red wine and white wine because we already know the labels of each data point prior to analysis. Then, in turn, the K-means clustering method is able to successfully segment these two classes. This shows that even without prior knowledge of the labels, the K-means clustering method easily allows us to visualize two separate groups of features. It is worth noting that in K-means clustering, we would not know explicit labels for these clusters, but rather than they are just similar to each other. 
+
+Unfortunately however, it does not appear that the K-means clustering method is able to effectively separate the wine quality classes. In the PCA plot for wine quality, we have the class labels indicated to show the ellipse of each quality level, and clearly there the classes are not well separated. So despite the groups in the K-means clustering method appearing somewhat separated, we know that this separation is a farce - or at the least that these clusters are not representing the wine quality. 
+
+## Conclusion
+K-Means clustering is effective at distinguishing between white wine and red wine without prior knowledge of what the two cluster classes are, but cannot effectively cluster the different quality levels of the wines. 
+
+# Problem 4 
+
+## Problem Statement
+We have a dataset from ```social_marketing.csv```, in which we store in a dataframe called ```Market```. The dataset contains 37 features, with one feature being the unique ID of a user and the other features being the number of Twitter posts that belong to a certain category; with posts being allowed to count for multiple categories. The objective here is to try to garner any interesting market segments that appear to stand out in their social-media audience.
+
+## Methods
+To try to garner useful information, we implement a simple correlation matrix to see if there are any correlations between any paired features. In addition, we implement several unsupervised learning methods, including but not limited to: PCA, t-SNE, and K-means clustering. The correlation matrix does not used scaled features, while the unsupervised learning methods do use scaled features. In the PCA method, we first examine the cumulative and individual variance of the principal components. Then, we attempt to plot a 2D PCA-plot to see if any obvious clusters appear. For t-SNE, we simply reduce the scaled dataset into two dimensions so that it can be plotted on a 2D plot as well. Finally, we implement a K-means clustering algorithm on either the PCA or t-SNE plot, depending on which plot provides better separation of data points. 
+
+## Results
+
+### Correlation Matrix
+Through a simple correlation matrix we see that there are some positive correlations between the following features, which are the top 10 correlations. Note that there are no negative correlations since by definition of the features, there are no negative values in the unscaled features.
+
+- ```personal_fitness``` and ```health_nutrition```: 0.8099
+- ```college_uni``` and ```online_gaming```: 0.7728
+- ```fashion``` and ```cooking```: 0.7214
+- ```beauty``` and ```cooking```: 0.6642
+- ```politics``` and ```travel```: 0.6602
+- ```parenting``` and ```religion```: 0.6556
+- ```religion``` and ```sport_fandom```: 0.6380
+- ```fashion``` and ```beauty```: 0.6350
+- ```outdoors``` and ```health_nutrition```: 0.6082
+- ```parenting``` and ```sports_fandom```: 0.6077
+- ```computers``` and ```travel```: 0.6029
+
+```{r}
+# Scale dataset
+Market.Scaled <- na.omit(Market)
+Market.Scaled <- scale(Market[-c(1)])
+Market.Scaled <- as.data.frame(Market)
+
+Market <- as.data.frame(sapply(Market, as.numeric))
+M <- cor(Market.Scaled[c(2:37)])
+corrplot(M, method="circle")
+```
+
+### Principal Component Analysis
+
+We see that the 2D PCA plot does not appear to reveal any significant groups. This is unsurprising, as our cumulative variance plot shows us that the first two principal components only account for rouhgly 20.5% of the dataset variances, making it unlikely to visualize any possible clusters. This also suggests that whatever significant relationships that may exist in the features, it is unlikely to be linear. 
+
+```{r}
+# Perform PCA 
+market.pr <- prcomp(Market.Scaled[c(2:37)], center = TRUE, scale = TRUE)
+
+# Plot cumulative variances
+cumpro <- cumsum(market.pr$sdev^2 / sum(market.pr$sdev^2))
+plot(cumpro[0:36], xlab = "Number of PCs", ylab = "Amount of explained variance", main = "Cumulative variance plot")
+
+# Plot 2D PCA
+plot(market.pr$x[,1],market.pr$x[,2], xlab="PC1", ylab = "PC2", main = "PCA 2D Plot")
+```
+
+### t-SNE 
+We see that t-SNE achieves some better separation of data points. This is most likely due to the nonlinear relationships that t-SNE achieves, in contrast to the linear PCA method. However, it is worth noting that unlike PCA, the distances between data points in t-SNE are not scalable. Consequently, when the t-SNE values are used for K-means clustering, some caution should be implemented in interpretting the clusters. 
+```{r}
+# Run t-SNE and plot results
+tsne <- Rtsne(Market.Scaled[,-c(1)], dims = 2, perplexity=80, max_iter = 500)
+plot(tsne$Y, main="2D t-SNE Plot", xlab="t-SNE 1", ylab="t-SNE 2")
+```
+
+### K-Means Clustering
+Since the t-SNE plot appears to show better separated clusters than the PCA plot, the t-SNE values are used for K-means clustering. The Silhouette method suggests that the optimal K value is 7. 
+
+```{r}
+# Determine optimal K value with Silhouette method
+examine <- as.data.frame(tsne$Y)
+fviz_nbclust(examine, kmeans, method = "silhouette")+
+  labs(subtitle = "Silhouette method")
+```
+
+Interestingly, when using K-means clustering with k=7, the resulting clusters do not seem intuitive compared to somewhat arbitrary human-handmade clustering. For example, a human may see that there are a series of radially streaked clusters. Both the K-means clusters and streaked clusters are worth further investigation, as they may suggest different types of Twitter users that may require different marketing methods to maximize outreach.
+
+```{r}
+# K-Means clustering
+final <- kmeans(examine, 7, nstart = 25)
+fviz_cluster(final, data = examine, geom = "point", main = "K-Means Clustering")
+```
+
+## Conclusions
+We see that there are several strong correlations between different tweet subjects. In addition, we see that there appears to be several types of Twitter users that interact with the company. However, the relationship between the tweet subjects in these clusters appear to be highly nonlinear. The presence of multiple clusters suggests that different custom-targetted advertisements may need to be made for each of these cluster populations. Consequently, further investigation is recommended on determining how to maximize outreach with each of the t-SNE clusters. 
