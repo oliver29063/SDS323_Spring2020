@@ -40,7 +40,7 @@ While developing the appropriate DNA sequence to target specific molecules remai
 # Introduction
 Silver NanoCluster Beacons (Ag NCBs) are DNA-templated molecules consisting of several silver atoms, serving as cheap and customizable molecular markers. Under normal conditions, NCBs are dark and elicit no fluorescent signal. Upon binding to an appropriate molecular target, the conformation of the DNA-templated NCB changes to emit strong fluorescent signals (Figure 1). The NCB DNA sequence can be customized to bind to different targets, such as specific proteins or molecules. In addition to the NCB DNA sequence, there is a seperate activator DNA sequence. The activator DNA sequence does not affect what type of molecules the NCB binds to, but rather, it controls how bright the NCBs are when bound to the target molecule. The design rules of the activator DNA sequence are unclear, reducing the development of the activator DNA sequence to laborious and often frustrating trial-and-error. Recent high-throughput methods that can screen up to approximately 12,000 unique activator DNA sequences help mitigate this challenge, but is exceedingly expensive and requires significant materials such as advanced microscopy imaging systems and customized molecular assays. In addition, with the activator DNA sequence being 18 nucleotides long, the ability to screen 12,000 unique activator DNA sequences is still a small fraction of the possible $4^{18}$ activator sequences. To bridge this gap, we develop a machine learning model that can predict the brightness of the NCBs based on the activator DNA sequence, with the training and testing data derived from these expensive, high-throughput experiments.
 
-```{r figurename, echo=FALSE, fig.cap="**Figure 1.** Schematic of Ag NCB.", out.width = '90%'}
+```{r name1, echo=FALSE, fig.cap="**Figure 1.** Schematic of Ag NCB.", out.width = '90%'}
 knitr::include_graphics("Figure1.png")
 ```
 
@@ -52,7 +52,7 @@ The Chip-Hybridized Associationg Mapping Platform (CHAMP) allows for the screeni
 ## Feature Extraction
 With the raw dataset containing only a list of activator DNA sequences in rank order of brightness, different DNA features must still be extracted. The DNA features are extracted using a third-party Python software package - PyFeat - which is available at https://github.com/mrzResearchArena/PyFeat/. Through this software, we extract 16,171 different DNA features (Figure 2), stored in the dataset we use ("NCBFeatures.csv"). Most features consist of different DNA motifs, where **N** indicates a variable nucleotide and **_** indicates a gap of 0 to 5 nucleotides. For example, the feature **A_T** may represent **ATT**, **AT**, or **AGCGCT**. For each of these motif features, the value indicates the number of occurences of each motif. Other features include basic holistic characterizations of the activator DNA sequence, such as the % of bases that are G or C (GC content) or the AT-GC ratio. 
 
-```{r figurename, echo=FALSE, fig.cap="**Figure 2.** Table of extracted features.", out.width = '90%'}
+```{r name2, echo=FALSE, fig.cap="**Figure 2.** Table of extracted features.", out.width = '90%'}
 knitr::include_graphics("Figure2.png")
 ```
 
@@ -67,7 +67,7 @@ Once the optimal number of features - based on an feature importance threshold -
 ## Feature Selection
 Of the 16171 extracted features, 6512 features contain homogenous values for all data points and are removed, resulting in 9659 remaining features. After excluding features with a point-biserial correlation coefficient between -0.05 to 0.05, another 6333 features were excluded to result in 3326 remaining features. Finally, after implicit feature selection through a random forest model, the number of features ranged from 67 to 1733 features depending on the feature importance cutoff threshold (Figure 3).
 
-```{r figurename, echo=FALSE, fig.cap="**Figure 3.** Feature selection process.", out.width = '90%'}
+```{r name3, echo=FALSE, fig.cap="**Figure 3.** Feature selection process.", out.width = '90%'}
 knitr::include_graphics("Figure3.png")
 ```
 
@@ -153,7 +153,7 @@ for (j in 1:length(Importances)){
 
 The best feature importance cutoffs were 0.20 and 0.30, depending on the performance metric being evaluated as shown below with the best performing metrics bolded (Figure 4). Based of these results, we use a feature importance cutoff of 0.30 with a set of 939 features for further model tuning.
 
-```{r figurename, echo=FALSE, fig.cap="**Figure 4.** Model performance based on number of features used.", out.width = '90%'}
+```{r name4, echo=FALSE, fig.cap="**Figure 4.** Model performance based on number of features used.", out.width = '90%'}
 knitr::include_graphics("Figure4.png")
 ```
 
